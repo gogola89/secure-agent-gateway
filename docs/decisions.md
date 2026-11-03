@@ -122,3 +122,52 @@ choice made, per the ground rules in the spec.
   would carry state between unrelated tests, since the suite runs against
   real Redis rather than a mock (intentional, per section 9) - this is the
   cost of that choice, paid once in conftest rather than in every test.
+- **A real concurrency bug surfaced only by running the live demo after the
+  test suite passed, not by the test suite itself.** The hash chain used
+  `SELECT ... ORDER BY id DESC LIMIT 1 FOR UPDATE` to serialise appends.
+  That doesn't work: Postgres only re-checks the *locked row's own*
+  current version when a `FOR UPDATE` wait releases - it does not re-run
+  the `ORDER BY`/`LIMIT` to notice a brand-new row some other transaction
+  just inserted. Two concurrent audit writes could both resolve the same
+  "current tip", both compute a new row chained to it, and fork the chain.
+  The concurrency *test* (`test_concurrent_identical_requests_create_
+  exactly_one_transfer`) happened to pass regardless, because it only
+  asserts on the transfer rows, not the audit chain underneath them -
+  `/audit/verify` only caught it when checked by hand against the same
+  dev database the test suite had just run against. Fixed with a
+  transaction-scoped Postgres advisory lock (`pg_advisory_xact_lock`)
+  around the whole read-tip-then-insert sequence, which does fully
+  serialise it. Lesson worth repeating in the interview: green tests prove
+  what they assert, not what they don't - a live run-through of the actual
+  demo path is still part of "done".
+- **The tamper-detection test corrupting a row it never restored** was the
+  same kind of lesson from the other direction: a test that intentionally
+  breaks invariants in a shared dev database must put them back, or every
+  later run (including a live demo) inherits the damage.
+
+## Phase 5
+
+- **The MCP client is synchronous** (`httpx.Client`, not `AsyncClient`).
+  `pybreaker`'s synchronous `CircuitBreaker.call()` and `tenacity`'s
+  synchronous retry decorator compose simply with a sync client; FastMCP
+  tools can be plain sync functions (it runs them off the event loop
+  itself), so there's no async requirement being given up - just
+  complexity that this project doesn't need.
+- **The circuit breaker only "sees" infrastructure failures as failures.**
+  `_raw_call` only raises for 5xx/transport errors; a 4xx is returned
+  as an ordinary response and translated to `BankingAPIError` *outside*
+  the breaker's tracked call. Otherwise a customer asking about a
+  nonexistent account alias (a normal 404) would count toward tripping
+  the circuit open - treating an everyday "no" from the API as if the
+  whole banking service were down.
+- **The token-exchange delegation is the actual code path that makes
+  "the agent token never holds `transfers:confirm`" true**, not just a
+  claim in the README: `make login` is what performs it, and
+  `mcp_server/config.py`'s `CUSTOMER_TOKEN` is always the delegated
+  token, never the full one from a raw password grant.
+- **Admin token endpoint (`/audit/verify`) authentication tested in
+  phase 4, MCP resilience tested here with `respx`** rather than against
+  a live server - mocking at the transport level is what makes "GET
+  retries 3 times" and "circuit breaker opens after 5 failures"
+  deterministic and fast instead of dependent on real timing/network
+  behaviour.
