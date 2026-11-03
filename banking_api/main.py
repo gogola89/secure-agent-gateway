@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from banking_api.audit import audit_middleware
@@ -10,12 +13,23 @@ from banking_api.redis_client import get_redis
 from banking_api.routers import accounts, auth, transfers
 from banking_api.routers import audit as audit_router
 
-app = FastAPI(title="Secure Agent Gateway - Banking API", version="0.1.0")
+DOCS_DIR = Path(__file__).resolve().parent / "static" / "docs"
+
+# /docs is the human documentation site (installation, architecture,
+# security design, usage) mounted below - so FastAPI's own interactive API
+# reference moves to /api-docs instead of its default /docs.
+app = FastAPI(
+    title="Secure Agent Gateway - Banking API",
+    version="0.1.0",
+    docs_url="/api-docs",
+)
 register_exception_handlers(app)
 app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(transfers.router)
 app.include_router(audit_router.router)
+
+app.mount("/docs", StaticFiles(directory=DOCS_DIR, html=True), name="docs")
 
 app.middleware("http")(audit_middleware)
 

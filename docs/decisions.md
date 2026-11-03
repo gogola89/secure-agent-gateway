@@ -244,3 +244,23 @@ choice made, per the ground rules in the spec.
      undocumented status codes" is for - this is the step that caught bugs
      the unit test suite, written by the same person who wrote the code,
      structurally could not.
+
+## Post-phase-6: human documentation at /docs
+
+- **FastAPI's own interactive API reference defaults to `/docs`**, so
+  adding human documentation there meant relocating it, not overwriting it:
+  Swagger UI moved to `/api-docs` (`FastAPI(docs_url="/api-docs")`), ReDoc
+  stays at its default `/redoc`, and `/docs` is now a static page mounted
+  with Starlette's `StaticFiles(html=True)`.
+- **Hand-written static HTML, no markdown-rendering dependency.** The
+  content duplicates (deliberately) what's already in the README and
+  `docs/*.md`, condensed for in-app reading. Pulling in a markdown library
+  to render those files at request time would be a new, unauthorised
+  dependency (section 1's "ask before adding any dependency not listed in
+  section 3") for a page that doesn't change at runtime - a single static
+  file the Dockerfile already copies (it's just part of `banking_api/`)
+  is simpler and has zero extra moving parts.
+- **No external CDN assets (e.g. Mermaid.js for the architecture diagram)**
+  - the architecture "diagram" on this page is plain CSS boxes, not
+    rendered Mermaid, so the docs page works fully offline, consistent
+    with the rest of this project running with no internet dependency.

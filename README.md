@@ -91,6 +91,11 @@ make login CUSTOMER=amina   # writes a delegated token into .env
 make run-mcp         # MCP server over stdio
 ```
 
+With the API running, full documentation (installation, architecture,
+tokens/scopes, endpoints, MCP tools, demo walkthrough) is served at
+**http://localhost:8000/docs**. The interactive API reference moved to
+`/docs`'s usual FastAPI spot, now at `/api-docs` (ReDoc at `/redoc`).
+
 ### Claude Desktop config
 
 Add this to Claude Desktop's MCP config (`claude_desktop_config.json`),

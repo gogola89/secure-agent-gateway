@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>secure-agent-gateway — documentation</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f6f7f9;
+    --text: #1b1f24;
+    --text-muted: #57606a;
+    --border: #d8dee4;
+    --accent: #1a5fb4;
+    --accent-bg: #eaf1fb;
+    --code-bg: #0d1117;
+    --code-text: #e6edf3;
+    --ok: #1a7f37;
+    --warn: #9a6700;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --bg-alt: #161b22;
+      --text: #e6edf3;
+      --text-muted: #9198a1;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent-bg: #0d2a4d;
+      --code-bg: #010409;
+      --code-text: #e6edf3;
+      --ok: #3fb950;
+      --warn: #d29922;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.88em;
+  }
+  code {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+
+  .layout {
+    display: flex;
+    max-width: 1200px;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+  nav.sidebar {
+    position: sticky;
+    top: 0;
+    flex: 0 0 240px;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 24px 16px;
+    border-right: 1px solid var(--border);
+  }
+  nav.sidebar h1 {
+    font-size: 15px;
+    margin: 0 0 4px;
+  }
+  nav.sidebar .tagline {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+  nav.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+  }
+  nav.sidebar li { margin: 2px 0; }
+  nav.sidebar a {
+    display: block;
+    padding: 5px 8px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13.5px;
+  }
+  nav.sidebar a:hover { background: var(--bg-alt); text-decoration: none; }
+  nav.sidebar .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 14px 8px 4px;
+  }
+
+  main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 32px 40px 80px;
+    max-width: 840px;
+  }
+  main h1 { font-size: 30px; margin-top: 0; }
+  main h2 {
+    font-size: 22px;
+    margin-top: 2.6em;
+    padding-top: 0.4em;
+    border-top: 1px solid var(--border);
+  }
+  main h2:first-of-type { border-top: none; margin-top: 1.2em; }
+  main h3 { font-size: 16px; margin-top: 1.8em; }
+  p { color: var(--text); }
+  .lede { color: var(--text-muted); font-size: 16px; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13.5px;
+    margin: 1em 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--bg-alt); }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    margin-left: 6px;
+  }
+  .callout {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 1.2em 0;
+  }
+  .grid-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin: 1em 0;
+  }
+  .grid-links a {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+  }
+  .grid-links a:hover { border-color: var(--accent); text-decoration: none; }
+  .grid-links .path { color: var(--accent); font-family: ui-monospace, monospace; font-size: 13px; }
+
+  .diagram {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    background: var(--bg-alt);
+    font-size: 13.5px;
+  }
+  .diagram .row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; margin: 10px 0; }
+  .diagram .box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: var(--bg);
+    flex: 1 1 160px;
+  }
+  .diagram .box strong { display: block; }
+  .diagram .box small { color: var(--text-muted); }
+  .diagram .arrow { text-align: center; color: var(--text-muted); font-size: 12px; margin: 2px 0; }
+
+  ol li, ul li { margin: 0.4em 0; }
+  footer {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin-top: 4em;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  @media (max-width: 860px) {
+    .layout { flex-direction: column; }
+    nav.sidebar { position: relative; height: auto; width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 24px 20px 60px; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <h1>secure-agent-gateway</h1>
+    <div class="tagline">Local documentation</div>
+
+    <div class="section-label">Start here</div>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#installation">Installation</a></li>
+      <li><a href="#running-the-demo">Running the demo</a></li>
+    </ul>
+
+    <div class="section-label">Technical reference</div>
+    <ul>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#identity-and-tokens">Identity &amp; tokens</a></li>
+      <li><a href="#endpoints">Endpoints</a></li>
+      <li><a href="#mcp-tools">MCP tools</a></li>
+      <li><a href="#security-design">Security design</a></li>
+    </ul>
+
+    <div class="section-label">Usage</div>
+    <ul>
+      <li><a href="#claude-desktop">Claude Desktop config</a></li>
+      <li><a href="#demo-walkthrough">Demo walkthrough</a></li>
+      <li><a href="#make-targets">Make targets</a></li>
+      <li><a href="#api-reference">Live API reference</a></li>
+    </ul>
+
+    <div class="section-label">More</div>
+    <ul>
+      <li><a href="#production">What I'd add in production</a></li>
+      <li><a href="https://github.com/gogola89/secure-agent-gateway">Source on GitHub</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1 id="overview">secure-agent-gateway</h1>
+    <p class="lede">
+      A prototype of how AI agents can safely access banking systems: narrow
+      tools, delegated identity, human confirmation, idempotency and
+      tamper-evident audit. All data is invented, no real bank is involved,
+      and amounts use mock Kenyan-style data (KES, <code>+2547...</code>
+      numbers).
+    </p>
+    <p>
+      The core idea: the AI agent never talks to the database, never sees a
+      customer identifier it could tamper with, and can never complete a
+      payment by itself. Every one of those guarantees is enforced by the
+      banking API, not by prompting the model nicely.
+    </p>
+
+    <h2 id="installation">Installation</h2>
+    <p>Requires Docker, Python 3.12, and <code>make</code>.</p>
+    <pre><code>git clone https://github.com/gogola89/secure-agent-gateway.git
+cd secure-agent-gateway
+cp .env.example .env
+
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+
+make up      # starts Postgres, Redis, RabbitMQ; generates RS256 keys; runs migrations
+make seed    # idempotent mock customers, accounts, beneficiaries, transactions
+make test    # 50+ tests, ~96% coverage on banking_api/</code></pre>
+    <div class="callout">
+      <strong>Fresh clone check:</strong> <code>cp .env.example .env &amp;&amp;
+      make up &amp;&amp; make seed &amp;&amp; make test</code> should pass with
+      no manual steps beyond creating the venv once.
+    </div>
+
+    <h2 id="running-the-demo">Running the demo</h2>
+    <pre><code>make run-api                  # banking API on http://localhost:8000
+make login CUSTOMER=amina     # logs in, then token-exchanges down to a
+                               # delegated token, written into .env
+make run-mcp                  # MCP server over stdio (for Claude Desktop,
+                               # or any MCP client)</code></pre>
+    <p>
+      This documentation page is served by the running banking API itself,
+      at <code>http://localhost:8000/docs</code>.
+    </p>
+
+    <h2 id="architecture">Architecture</h2>
+    <div class="diagram">
+      <div class="row">
+        <div class="box"><strong>MCP client</strong><small>e.g. Claude Desktop</small></div>
+        <div class="arrow">tool calls, stdio →</div>
+        <div class="box"><strong>MCP server</strong><small>mcp_server/</small></div>
+        <div class="arrow">customer token + agent token →</div>
+        <div class="box"><strong>Banking API</strong><small>banking_api/</small></div>
+      </div>
+      <div class="row">
+        <div class="box"><strong>Customer app</strong><small>scripts/confirm_transfer.py</small></div>
+        <div class="arrow">own app token, OTP →</div>
+        <div class="box" style="flex-grow:0.001;"></div>
+        <div class="arrow">↑ confirm only, no agent token</div>
+      </div>
+      <div class="row">
+        <div class="box"><strong>PostgreSQL</strong><small>data, audit log</small></div>
+        <div class="box"><strong>Redis</strong><small>rate limits, OTP hashes</small></div>
+        <div class="box"><strong>RabbitMQ</strong><small>events — phase 7, optional</small></div>
+      </div>
+    </div>
+    <p>
+      The MCP server is the <em>only</em> thing the AI ever talks to. The
+      banking API is the <em>only</em> thing that ever touches data.
+      Confirmation arrives through a separate channel — the customer's own
+      app — that the agent has no tool for. Full write-up with the request
+      flow for a transfer: <code>docs/architecture.md</code> in the repo.
+    </p>
+
+    <h2 id="identity-and-tokens">Identity &amp; tokens</h2>
+    <p>Every call to the banking API carries two RS256 JWTs:</p>
+    <table>
+      <tr><th>Token</th><th>Header</th><th>Answers</th></tr>
+      <tr>
+        <td>Customer token</td>
+        <td><code>Authorization: Bearer &lt;jwt&gt;</code></td>
+        <td>who the action is <em>for</em></td>
+      </tr>
+      <tr>
+        <td>Agent token</td>
+        <td><code>X-Agent-Token: &lt;jwt&gt;</code> <small>(no "Bearer" prefix)</small></td>
+        <td>who is <em>acting</em></td>
+      </tr>
+    </table>
+    <p>
+      <strong>Effective scopes = customer scopes ∩ agent scopes.</strong>
+      The seeded agent, <code>assistant-v1</code>, holds
+      <code>accounts:read transactions:read transfers:initiate
+      products:read</code> — never <code>transfers:confirm</code>.
+    </p>
+    <table>
+      <tr><th>Scope</th><th>Grants</th></tr>
+      <tr><td><code>accounts:read</code></td><td>List own accounts and balances</td></tr>
+      <tr><td><code>transactions:read</code></td><td>Read own transaction history</td></tr>
+      <tr><td><code>transfers:initiate</code></td><td>Create a pending transfer</td></tr>
+      <tr><td><code>transfers:confirm</code></td><td>Confirm with OTP — customer-only, never granted to agents</td></tr>
+      <tr><td><code>products:read</code></td><td>Search product documents (phase 8, optional)</td></tr>
+    </table>
+    <p>
+      <code>make login CUSTOMER=amina</code> performs a password grant, then
+      a token-exchange grant (<code>urn:ietf:params:oauth:grant-type:token-exchange</code>,
+      RFC 8693-style) that narrows the result to the customer's scopes minus
+      <code>transfers:confirm</code>, stamped with <code>azp=assistant-v1</code>.
+      That delegated token is the only one the MCP server ever holds.
+    </p>
+
+    <h2 id="endpoints">Endpoints</h2>
+    <table>
+      <tr><th>Method &amp; path</th><th>Scope</th><th>Notes</th></tr>
+      <tr><td><code>POST /auth/token</code></td><td>none</td><td>Mock IdP: password, client_credentials, or token-exchange grant</td></tr>
+      <tr><td><code>GET /accounts</code></td><td><code>accounts:read</code></td><td>Own accounts: alias, type, masked number, balance</td></tr>
+      <tr><td><code>GET /accounts/{alias}/transactions</code></td><td><code>transactions:read</code></td><td><code>limit</code> 1–20, newest first</td></tr>
+      <tr><td><code>GET /beneficiaries</code></td><td><code>accounts:read</code></td><td>Own beneficiaries</td></tr>
+      <tr><td><code>POST /transfers</code></td><td><code>transfers:initiate</code></td><td>Requires <code>Idempotency-Key</code> (8–128 printable chars)</td></tr>
+      <tr><td><code>GET /transfers/{id}</code></td><td><code>transfers:initiate</code></td><td>Own transfers only</td></tr>
+      <tr><td><code>POST /transfers/{id}/confirm</code></td><td><code>transfers:confirm</code></td><td>Customer app token only; rejects any <code>X-Agent-Token</code></td></tr>
+      <tr><td><code>GET /audit/verify</code></td><td>admin token</td><td>Walks the hash chain, reports the first broken row</td></tr>
+      <tr><td><code>GET /healthz</code> / <code>GET /readyz</code></td><td>none</td><td>Liveness / readiness (DB + Redis)</td></tr>
+    </table>
+
+    <h2 id="mcp-tools">MCP tools</h2>
+    <table>
+      <tr><th>Tool</th><th>Arguments</th><th>Returns</th></tr>
+      <tr><td><code>get_account_summary</code></td><td>none</td><td>Accounts: alias, type, masked number, balance</td></tr>
+      <tr><td><code>get_recent_transactions</code></td><td><code>account_alias</code>, <code>limit</code> (1–20)</td><td>Transactions; narration inside <code>untrusted_text</code></td></tr>
+      <tr><td><code>list_beneficiaries</code></td><td>none</td><td>Beneficiary aliases, names, banks, masked numbers</td></tr>
+      <tr><td><code>initiate_transfer</code></td><td><code>from_account_alias</code>, <code>beneficiary_alias</code>, <code>amount_kes</code>, <code>narration</code></td><td><code>transfer_id</code>, <code>status=pending_confirmation</code></td></tr>
+      <tr><td><code>get_transfer_status</code></td><td><code>transfer_id</code></td><td>Status and timestamps</td></tr>
+    </table>
+    <p>
+      No tool accepts a customer identifier, and no tool can confirm a
+      transfer — <code>initiate_transfer</code>'s own description tells the
+      model as much, and <code>get_recent_transactions</code>'s tells it to
+      treat <code>untrusted_text</code> as data, never instructions.
+    </p>
+
+    <h2 id="security-design">Security design, in ten bullets</h2>
+    <p>Each stops a specific threat; <code>docs/security.md</code> has the full version with the attack it addresses spelled out.</p>
+    <ol>
+      <li><strong>No <code>customer_id</code> in any tool or endpoint</strong> — identity comes only from the signed JWT.</li>
+      <li><strong>Two tokens, intersected scopes</strong> — the agent can never hold <code>transfers:confirm</code>, regardless of the customer's own token.</li>
+      <li><strong>Token-exchange delegation</strong> (RFC 8693-style) — <code>make login</code> narrows a real login into the scoped-down token the agent holds.</li>
+      <li><strong>Object-level authorisation</strong> — a missing alias and someone else's alias return the identical 404.</li>
+      <li><strong>Human in the loop on a separate channel</strong> — only the customer's own app, with an OTP the agent never sees, can confirm a transfer.</li>
+      <li><strong>Idempotency keys with a DB unique constraint</strong> — retries and loops can't create duplicate transfers.</li>
+      <li><strong>Business rules enforced server-side</strong> — per-transfer/daily limits and balance, re-checked again at confirmation.</li>
+      <li><strong>Masking applied identically everywhere</strong> — API responses, tool output, and audit rows.</li>
+      <li><strong>Untrusted tool output</strong> — no tool call alone is ever sufficient to move money, so a successful injection has nowhere to go.</li>
+      <li><strong>Tamper-evident, append-only audit log</strong> — hash-chained rows, a Postgres trigger blocking <code>UPDATE</code>/<code>DELETE</code>, and <code>GET /audit/verify</code> to prove it.</li>
+    </ol>
+
+    <h3>Resilience (MCP client → banking API)</h3>
+    <ul>
+      <li>Explicit timeouts: connect 2s, read 5s.</li>
+      <li>GET requests retry up to 3× with exponential backoff and jitter; 4xx responses are never retried.</li>
+      <li><code>POST /transfers</code> retries only ever reuse the <em>same</em> <code>Idempotency-Key</code>.</li>
+      <li>A circuit breaker opens after 5 consecutive infrastructure failures for 30s, failing fast with a clear "banking service temporarily unavailable" error.</li>
+    </ul>
+
+    <h2 id="claude-desktop">Claude Desktop configuration</h2>
+    <p>Add to Claude Desktop's <code>claude_desktop_config.json</code>:</p>
+    <pre><code>{
+  "mcpServers": {
+    "secure-agent-gateway": {
+      "command": "/absolute/path/to/secure-agent-gateway/.venv/bin/python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "/absolute/path/to/secure-agent-gateway",
+      "env": {
+        "BANKING_API_URL": "http://localhost:8000",
+        "AGENT_CLIENT_ID": "assistant-v1",
+        "AGENT_CLIENT_SECRET": "assistant-v1-secret",
+        "CUSTOMER_TOKEN": "&lt;paste the token make login just wrote to .env&gt;"
+      }
+    }
+  }
+}</code></pre>
+
+    <h2 id="demo-walkthrough">Demo walkthrough</h2>
+    <ol>
+      <li><strong>"What's my balance?"</strong> → calls <code>get_account_summary</code>; only masked account numbers appear.</li>
+      <li><strong>"Show my last five transactions on my current account."</strong> → one narration contains an injected instruction. The assistant treats it as text, not a command — no transfer is created.</li>
+      <li><strong>"Show me Brian's account."</strong> → not found. Check <code>GET /audit/verify</code> and the <code>audit_log</code> table: the denial was logged.</li>
+      <li><strong>"Send KES 5,000 to Brian for lunch."</strong> → a pending transfer is created. Read the OTP from <code>var/sms_outbox.log</code>, run <code>make confirm CUSTOMER=amina TRANSFER=&lt;id&gt; OTP=&lt;code&gt;</code>, then ask for status: <code>completed</code>.</li>
+      <li>Repeat the same request in the same session — the idempotent replay returns the same transfer. Ask to send KES 120,000 to see the per-transfer limit reject it.</li>
+      <li>Finish with <code>GET /audit/verify</code> returning a valid chain.</li>
+    </ol>
+
+    <h2 id="make-targets">Make targets</h2>
+    <table>
+      <tr><td><code>make up</code></td><td>Start Postgres/Redis/RabbitMQ, generate keys, run migrations</td></tr>
+      <tr><td><code>make seed</code></td><td>Idempotent mock data</td></tr>
+      <tr><td><code>make test</code></td><td>Full test suite with coverage</td></tr>
+      <tr><td><code>make lint</code> / <code>make format</code></td><td>ruff check / ruff format</td></tr>
+      <tr><td><code>make openapi</code></td><td>Regenerate <code>openapi.json</code> from the live schema</td></tr>
+      <tr><td><code>make run-api</code></td><td>Run the banking API with reload</td></tr>
+      <tr><td><code>make run-mcp</code></td><td>Run the MCP server over stdio</td></tr>
+      <tr><td><code>make login CUSTOMER=amina</code></td><td>Log in + token-exchange, writes <code>CUSTOMER_TOKEN</code> into <code>.env</code></td></tr>
+      <tr><td><code>make confirm CUSTOMER=amina TRANSFER=&lt;id&gt; OTP=&lt;code&gt;</code></td><td>Simulate the customer's app confirming a transfer</td></tr>
+    </table>
+
+    <h2 id="api-reference">Live API reference</h2>
+    <p>Generated directly from the running app's OpenAPI schema:</p>
+    <div class="grid-links">
+      <a href="/api-docs"><strong>Swagger UI</strong><br /><span class="path">/api-docs</span></a>
+      <a href="/redoc"><strong>ReDoc</strong><br /><span class="path">/redoc</span></a>
+      <a href="/openapi.json"><strong>Raw OpenAPI schema</strong><br /><span class="path">/openapi.json</span></a>
+      <a href="/audit/verify"><strong>Audit chain status</strong><br /><span class="path">/audit/verify</span> <small>(admin token)</small></a>
+    </div>
+
+    <h2 id="production">What I'd add in production</h2>
+    <p>
+      A real IdP with Authorization Code + PKCE (this project's password/
+      client-credentials grants are an explicit, commented stand-in);
+      mutual TLS between internal services; a secrets vault instead of
+      <code>.env</code>; a policy engine (e.g. Open Policy Agent) so scopes
+      and limits can change without a redeploy; Kafka instead of RabbitMQ at
+      real event volume; SIEM integration for the audit log; and automated
+      model evaluation in CI before any prompt/tool change ships.
+    </p>
+
+    <footer>
+      secure-agent-gateway — mock data only, no real bank involved.
+      Source: <a href="https://github.com/gogola89/secure-agent-gateway">github.com/gogola89/secure-agent-gateway</a>.
+      Design notes and decisions: <code>docs/decisions.md</code> in the repo.
+    </footer>
+  </main>
+</div>
+</body>
+</html>
