@@ -11,8 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.seed import main as run_seed  # noqa: E402
 
+from banking_api.config import settings  # noqa: E402
 from banking_api.db import SessionLocal, engine  # noqa: E402
 from banking_api.main import app  # noqa: E402
+
+AMINA_PHONE = "+254712345000"
+BRIAN_PHONE = "+254723456000"
+AGENT_CLIENT_ID = "assistant-v1"
 
 TABLES_IN_TRUNCATE_ORDER = (
     "audit_log, outbox, notifications, transfers, transactions, "
@@ -45,3 +50,72 @@ def db_session():
         yield session
     finally:
         session.close()
+
+
+def _password_token(client: TestClient, phone: str) -> str:
+    response = client.post(
+        "/auth/token",
+        json={
+            "grant_type": "password",
+            "username": phone,
+            "password": settings.demo_customer_password,
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["access_token"]
+
+
+def _delegated_token(client: TestClient, full_token: str, client_id: str = AGENT_CLIENT_ID) -> str:
+    response = client.post(
+        "/auth/token",
+        json={
+            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+            "subject_token": full_token,
+            "client_id": client_id,
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["access_token"]
+
+
+@pytest.fixture
+def amina_full_token(client: TestClient) -> str:
+    return _password_token(client, AMINA_PHONE)
+
+
+@pytest.fixture
+def brian_full_token(client: TestClient) -> str:
+    return _password_token(client, BRIAN_PHONE)
+
+
+@pytest.fixture
+def amina_token(client: TestClient, amina_full_token: str) -> str:
+    """Delegated token: what the MCP server would hold for Amina."""
+    return _delegated_token(client, amina_full_token)
+
+
+@pytest.fixture
+def brian_token(client: TestClient, brian_full_token: str) -> str:
+    return _delegated_token(client, brian_full_token)
+
+
+@pytest.fixture
+def agent_token(client: TestClient) -> str:
+    agent = settings.agent_credentials()[AGENT_CLIENT_ID]
+    response = client.post(
+        "/auth/token",
+        json={
+            "grant_type": "client_credentials",
+            "client_id": agent.client_id,
+            "client_secret": agent.client_secret,
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["access_token"]
+
+
+def auth_headers(customer_token: str, agent_token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {customer_token}",
+        "X-Agent-Token": agent_token,
+    }

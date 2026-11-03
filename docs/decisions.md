@@ -30,7 +30,30 @@ choice made, per the ground rules in the spec.
   Postgres, Redis and RabbitMQ to always be available as services. The
   containers being up costs nothing if phase 7 is skipped.
 
-## Phase 2 (to be filled in as built)
+## Phase 2
+
+- **Admin token is a static shared secret** (`ADMIN_TOKEN`), compared
+  directly, rather than a JWT with an `audit:admin` scope. `/audit/verify`
+  (phase 4) is an internal operational endpoint, not part of the
+  customer/agent delegation model this project demonstrates, so a second
+  JWT-issuing path for it would add complexity without adding anything to
+  show.
+- **Token exchange grant (RFC 8693):** `POST /auth/token` supports three
+  grants - `password` (full customer scopes), `client_credentials` (agent
+  scopes) and `urn:ietf:params:oauth:grant-type:token-exchange` (narrows a
+  customer's own token to their scopes minus `transfers:confirm`, stamping
+  `azp=<agent_client_id>`). `make login` performs the password grant and
+  then the exchange, so the token that ever reaches the MCP server/agent
+  can never carry `transfers:confirm` - this is the concrete mechanism
+  behind "a customer token without confirm scope" in section 6.
+- **Masking test caught a real leak:** the seed data originally built each
+  transaction's `reference` as `TXN-{account_number}-{n}`, which put the
+  full 12-digit account number into every transaction response. The
+  "no 12-digit sequence anywhere" test (section 9) failed against it
+  immediately. Fixed by generating references from a random UUID instead
+  of the account number. Worth calling out in the interview: this is
+  exactly the kind of leak that's invisible until something **tests for the
+  masking property itself**, not just for the masked fields' existence.
 
 ## Phase 3 (to be filled in as built)
 

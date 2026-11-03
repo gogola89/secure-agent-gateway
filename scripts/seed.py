@@ -106,7 +106,7 @@ def seed_transactions(
         return
 
     now = datetime.now(UTC)
-    for i in range(count):
+    for _ in range(count):
         is_credit = rng.random() < 0.3
         amount_cents = rng.randint(200, 15_000) * 100
         narration = rng.choice(NARRATION_TEMPLATES)
@@ -118,7 +118,7 @@ def seed_transactions(
                 posted_at=posted_at,
                 amount_cents=amount_cents if is_credit else -amount_cents,
                 narration=narration,
-                reference=f"TXN-{account.account_number}-{i:04d}",
+                reference=f"TXN-{uuid.uuid4().hex[:12].upper()}",
             )
         )
 
@@ -130,7 +130,7 @@ def seed_transactions(
                 posted_at=now - timedelta(days=2),
                 amount_cents=-500_000,
                 narration=PROMPT_INJECTION_NARRATION,
-                reference=f"TXN-{account.account_number}-INJECT",
+                reference=f"TXN-{uuid.uuid4().hex[:12].upper()}",
             )
         )
 

@@ -22,6 +22,7 @@ class TokenRequest(StrictModel):
     password: str | None = None
     client_id: str | None = None
     client_secret: str | None = None
+    subject_token: str | None = None
 
 
 class TokenResponse(StrictModel):

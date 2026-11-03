@@ -21,6 +21,20 @@ from banking_api.errors import AppError
 
 ALLOWED_ALGORITHMS = ["RS256"]
 
+TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange"
+
+# Every seeded customer gets the same full scope set; this demo doesn't
+# model per-customer roles. `transfers:confirm` is deliberately excluded
+# when a token is delegated to an agent (see token-exchange grant below).
+CUSTOMER_FULL_SCOPES = [
+    "accounts:read",
+    "transactions:read",
+    "transfers:initiate",
+    "transfers:confirm",
+    "products:read",
+]
+SCOPES_NEVER_DELEGATED = {"transfers:confirm"}
+
 
 @lru_cache
 def _private_key() -> str:
