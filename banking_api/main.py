@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import uuid
 
-import redis
 from fastapi import FastAPI, Request
 from sqlalchemy import text
 
-from banking_api.config import settings
 from banking_api.db import engine
 from banking_api.errors import register_exception_handlers
-from banking_api.routers import accounts, auth
+from banking_api.redis_client import get_redis
+from banking_api.routers import accounts, auth, transfers
 
 app = FastAPI(title="Secure Agent Gateway - Banking API", version="0.1.0")
 register_exception_handlers(app)
 app.include_router(auth.router)
 app.include_router(accounts.router)
+app.include_router(transfers.router)
 
 
 @app.middleware("http")
@@ -38,7 +38,6 @@ def readyz() -> dict[str, str]:
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
 
-    redis_client = redis.Redis.from_url(settings.redis_url)
-    redis_client.ping()
+    get_redis().ping()
 
     return {"status": "ready"}

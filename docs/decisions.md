@@ -55,6 +55,31 @@ choice made, per the ground rules in the spec.
   exactly the kind of leak that's invisible until something **tests for the
   masking property itself**, not just for the masked fields' existence.
 
-## Phase 3 (to be filled in as built)
+## Phase 3
+
+- **Business-rule rejections return 422**, not 400 or 403: amount and limit
+  violations are a validation failure on the request given the account's
+  current state, consistent with Pydantic's own 422s elsewhere in the API.
+- **"Available balance" at initiate time subtracts this customer's other
+  `pending_confirmation` transfers from that same account**, not just the
+  stored `balance_cents`. Otherwise two transfers each individually within
+  balance, initiated back to back before either is confirmed, could
+  jointly overdraw the account once both are confirmed.
+- **A flaky test found a second, more subtle masking bug:** transaction/
+  transfer `reference` values were built from `uuid4().hex[:12]` - 12
+  hex characters. Roughly 0.7% of the time, a random 12-hex-character
+  string is all digits, which the "no 12-digit sequence anywhere" test
+  (correctly) flags as indistinguishable from a leaked account number.
+  Fixed by shortening these tokens to 10 characters, which makes a
+  12-digit run structurally impossible rather than merely unlikely -
+  the same category of fix as the phase 2 masking bug, worth keeping in
+  mind for any future identifier: don't let a field incidentally reach the
+  length of a sensitive one.
+- **OTP expiry is checked against `transfer.created_at + OTP_TTL`** read
+  from the transfer row itself (not only Redis key TTL), so confirming a
+  transfer whose OTP already expired gives a precise `transfer_expired`
+  error even if the Redis key happens to still be lingering, and tests can
+  simulate expiry deterministically by backdating `created_at` instead of
+  sleeping.
 
 ## Phase 4 (to be filled in as built)

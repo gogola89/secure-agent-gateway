@@ -3,6 +3,7 @@ export
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
+CUSTOMER ?= amina
 
 .PHONY: up down keys seed test lint format openapi login confirm run-api run-mcp
 
@@ -45,4 +46,4 @@ login:
 	$(PYTHON) scripts/login.py $(CUSTOMER)
 
 confirm:
-	$(PYTHON) scripts/confirm_transfer.py $(TRANSFER) $(OTP)
+	$(PYTHON) scripts/confirm_transfer.py $(CUSTOMER) $(TRANSFER) $(OTP)

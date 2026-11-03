@@ -118,7 +118,7 @@ def seed_transactions(
                 posted_at=posted_at,
                 amount_cents=amount_cents if is_credit else -amount_cents,
                 narration=narration,
-                reference=f"TXN-{uuid.uuid4().hex[:12].upper()}",
+                reference=f"TXN-{uuid.uuid4().hex[:10].upper()}",
             )
         )
 
@@ -130,7 +130,7 @@ def seed_transactions(
                 posted_at=now - timedelta(days=2),
                 amount_cents=-500_000,
                 narration=PROMPT_INJECTION_NARRATION,
-                reference=f"TXN-{uuid.uuid4().hex[:12].upper()}",
+                reference=f"TXN-{uuid.uuid4().hex[:10].upper()}",
             )
         )
 
