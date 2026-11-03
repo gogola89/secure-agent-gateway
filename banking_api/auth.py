@@ -105,17 +105,24 @@ def _principal_from_bearer(value: str | None) -> Principal:
     )
 
 
-def get_customer_principal(authorization: str | None = Header(default=None)) -> Principal:
-    return _principal_from_bearer(authorization)
+def get_customer_principal(
+    request: Request, authorization: str | None = Header(default=None)
+) -> Principal:
+    principal = _principal_from_bearer(authorization)
+    request.state.customer_id = principal.sub
+    return principal
 
 
 def get_agent_principal(
+    request: Request,
     x_agent_token: str | None = Header(default=None, alias="X-Agent-Token"),
 ) -> Principal:
     if not x_agent_token:
         raise AppError(401, "missing_agent_token", "X-Agent-Token header is required.")
     claims = decode_token(x_agent_token)
-    return Principal(sub=claims["sub"], scopes=set(claims.get("scope", "").split()))
+    principal = Principal(sub=claims["sub"], scopes=set(claims.get("scope", "").split()))
+    request.state.agent_id = principal.sub
+    return principal
 
 
 @dataclass(frozen=True)
@@ -130,8 +137,8 @@ def get_effective_principal(
     authorization: str | None = Header(default=None),
     x_agent_token: str | None = Header(default=None, alias="X-Agent-Token"),
 ) -> EffectivePrincipal:
-    customer = get_customer_principal(authorization)
-    agent = get_agent_principal(x_agent_token)
+    customer = get_customer_principal(request, authorization)
+    agent = get_agent_principal(request, x_agent_token)
     effective = customer.scopes & agent.scopes
     principal = EffectivePrincipal(
         customer_id=customer.sub, agent_id=agent.sub, effective_scopes=effective
@@ -141,6 +148,14 @@ def get_effective_principal(
     return principal
 
 
+def require_admin_token(authorization: str | None = Header(default=None)) -> None:
+    """`/audit/verify` is an internal operational endpoint, not part of the
+    customer/agent delegation model - a static shared secret is enough
+    here and keeps that distinction clear (see docs/decisions.md)."""
+    if authorization != f"Bearer {settings.admin_token}":
+        raise AppError(401, "unauthorized", "A valid admin token is required.")
+
+
 def require_scopes(*required: str):
     def checked(
         principal: EffectivePrincipal = Depends(get_effective_principal),
@@ -148,7 +163,7 @@ def require_scopes(*required: str):
         missing = set(required) - principal.effective_scopes
         if missing:
             reason = f"scope_missing:{','.join(sorted(missing))}"
-            raise AppError(403, "forbidden", reason)
+            raise AppError(403, "forbidden", reason, audit_reason=reason)
         return principal
 
     return checked

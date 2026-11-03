@@ -82,6 +82,12 @@ def test_same_key_different_body_is_conflict(client, amina_token, agent_token):
 def test_concurrent_identical_requests_create_exactly_one_transfer(amina_token, agent_token):
     import concurrent.futures
 
+    # The spec's example fires 10 concurrent requests; this agent/customer
+    # pair is capped at `rate_limit_transfers_per_minute` (5) per minute, so
+    # 10 would partly test the rate limiter instead of idempotency. Firing
+    # exactly the limit still proves the property: every one of these
+    # concurrent, identical requests must resolve to the same transfer.
+    concurrency = settings.rate_limit_transfers_per_minute
     key = _idem_key()
 
     def fire(_: int):
@@ -94,14 +100,30 @@ def test_concurrent_identical_requests_create_exactly_one_transfer(amina_token, 
             key=key,
         )
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
-        results = list(pool.map(fire, range(10)))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+        results = list(pool.map(fire, range(concurrency)))
 
     assert all(r.status_code in (200, 201) for r in results)
     assert len({r.json()["transfer_id"] for r in results}) == 1
 
 
 # --- Limits ---
+
+
+def test_sixth_transfer_request_in_a_minute_is_rate_limited(client, amina_token, agent_token):
+    limit = settings.rate_limit_transfers_per_minute
+    for i in range(limit):
+        response = _initiate(
+            client, amina_token, agent_token, amount_kes="100.00", narration=f"rl{i}"
+        )
+        assert response.status_code == 201
+
+    over_limit = _initiate(
+        client, amina_token, agent_token, amount_kes="100.00", narration="rl-over"
+    )
+    assert over_limit.status_code == 429
+    assert "Retry-After" in over_limit.headers
+    assert over_limit.json()["error"]["code"] == "rate_limited"
 
 
 def test_amount_just_above_per_transfer_limit_is_rejected(client, amina_token, agent_token):

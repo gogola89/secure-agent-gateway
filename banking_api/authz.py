@@ -11,10 +11,23 @@ from banking_api.errors import AppError
 from banking_api.models import Account, Beneficiary
 
 
+def _not_found_reason(db: Session, model, customer_id: str, alias: str) -> str:
+    """Public response is the identical 404 either way; only the audit
+    trail learns whether the alias belongs to someone else."""
+    exists_elsewhere = (
+        db.query(model.id).filter_by(alias=alias).filter(model.customer_id != customer_id).first()
+        is not None
+    )
+    return "not_owner" if exists_elsewhere else "not_found"
+
+
 def get_owned_account(db: Session, customer_id: str, alias: str) -> Account:
     account = db.query(Account).filter_by(customer_id=customer_id, alias=alias).one_or_none()
     if account is None:
-        raise AppError(404, "not_found", f"No account '{alias}' for this customer.")
+        reason = _not_found_reason(db, Account, customer_id, alias)
+        raise AppError(
+            404, "not_found", f"No account '{alias}' for this customer.", audit_reason=reason
+        )
     return account
 
 
@@ -23,5 +36,8 @@ def get_owned_beneficiary(db: Session, customer_id: str, alias: str) -> Benefici
         db.query(Beneficiary).filter_by(customer_id=customer_id, alias=alias).one_or_none()
     )
     if beneficiary is None:
-        raise AppError(404, "not_found", f"No beneficiary '{alias}' for this customer.")
+        reason = _not_found_reason(db, Beneficiary, customer_id, alias)
+        raise AppError(
+            404, "not_found", f"No beneficiary '{alias}' for this customer.", audit_reason=reason
+        )
     return beneficiary

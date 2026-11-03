@@ -14,6 +14,7 @@ from scripts.seed import main as run_seed  # noqa: E402
 from banking_api.config import settings  # noqa: E402
 from banking_api.db import SessionLocal, engine  # noqa: E402
 from banking_api.main import app  # noqa: E402
+from banking_api.redis_client import get_redis  # noqa: E402
 
 AMINA_PHONE = "+254712345000"
 BRIAN_PHONE = "+254723456000"
@@ -35,6 +36,17 @@ def seeded_database():
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE TABLE {TABLES_IN_TRUNCATE_ORDER} RESTART IDENTITY CASCADE"))
     run_seed()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def flush_rate_limits_and_otps():
+    """Every test gets a clean Redis slate: without this, the rate limiter
+    (keyed on agent_id:customer_id, section 5) would carry state across
+    tests within the same real 60s window and start rejecting unrelated
+    tests - a side effect of testing against real Redis rather than a
+    mock, which is otherwise exactly what we want (section 9)."""
+    get_redis().flushdb()
     yield
 
 

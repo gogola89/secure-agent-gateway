@@ -82,4 +82,43 @@ choice made, per the ground rules in the spec.
   simulate expiry deterministically by backdating `created_at` instead of
   sleeping.
 
-## Phase 4 (to be filled in as built)
+## Phase 4
+
+- **`AppError` carries an `audit_reason` separate from the public `code`.**
+  The clearest example: an account alias that belongs to another customer
+  and one that doesn't exist at all both return the identical public 404,
+  but `authz.py` queries (read-only, never changing the response) whether
+  the alias exists for *someone else* and logs `not_owner` vs `not_found`
+  internally. The audit trail is allowed to be more specific than the API
+  response - that asymmetry is the whole point of section 5's anti-
+  enumeration requirement.
+- **FastAPI's exception handlers run *inside* `call_next`,** so an `AppError`
+  raised by a route or dependency never reaches the audit middleware's own
+  `try/except` - it's already been turned into a `JSONResponse` by the time
+  `call_next` returns. The audit middleware instead reads a `deny_reason`
+  that each exception handler stashes on `request.state` before returning
+  its response. Worth knowing cold for the interview: middleware added via
+  `app.middleware("http")` wraps the *entire* exception-handling stack, not
+  just route handlers.
+- **Hash-chain appends take a `SELECT ... FOR UPDATE` on the chain tip**
+  (the latest row) before computing the new row's `prev_hash`, so concurrent
+  requests append in series instead of two requests both reading the same
+  tip and forking the chain. This is a real simplification: a
+  high-throughput production system would want a dedicated single-writer
+  (e.g. a queue consumer) rather than serialising on a row lock per web
+  request, but it keeps the demo's hash chain actually correct under the
+  concurrency tests in this same phase.
+- **The admin token for `/audit/verify` is a separate static secret, not a
+  JWT scope** - see the phase 2 note; this is where it's actually used.
+- **Rate limiting and idempotency are two different controls and the tests
+  must not conflate them.** The spec's idempotency test description uses
+  10 concurrent requests; configured at 5 `transfers:initiate` calls/minute
+  per agent:customer pair, a literal 10 would be partly testing the rate
+  limiter. The test fires exactly `rate_limit_transfers_per_minute`
+  concurrent identical requests instead - still proves exactly one transfer
+  is created, without the two controls interfering with each other.
+- **Tests flush Redis before every test** (`flush_rate_limits_and_otps`
+  autouse fixture). Without it the rate limiter's real 60-second window
+  would carry state between unrelated tests, since the suite runs against
+  real Redis rather than a mock (intentional, per section 9) - this is the
+  cost of that choice, paid once in conftest rather than in every test.

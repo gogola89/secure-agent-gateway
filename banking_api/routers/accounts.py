@@ -8,6 +8,7 @@ from banking_api.authz import get_owned_account
 from banking_api.db import get_db
 from banking_api.masking import mask_account_number
 from banking_api.models import Account, Beneficiary, Transaction
+from banking_api.ratelimit import rate_limit_reads
 from banking_api.schemas import (
     AccountOut,
     BeneficiaryOut,
@@ -15,7 +16,7 @@ from banking_api.schemas import (
     amount_cents_to_kes,
 )
 
-router = APIRouter(tags=["accounts"])
+router = APIRouter(tags=["accounts"], dependencies=[Depends(rate_limit_reads)])
 
 require_accounts_read = require_scopes("accounts:read")
 require_transactions_read = require_scopes("transactions:read")

@@ -22,6 +22,7 @@ from banking_api.db import get_db
 from banking_api.errors import AppError
 from banking_api.models import Account, Customer, Transaction, Transfer
 from banking_api.otp import check_otp, clear_otp, generate_otp, send_otp_sms, store_otp
+from banking_api.ratelimit import rate_limit_reads, rate_limit_transfers
 from banking_api.redis_client import get_redis
 from banking_api.rules import validate_transfer
 from banking_api.schemas import ConfirmRequest, TransferCreate, TransferOut, amount_kes_to_cents
@@ -53,7 +54,9 @@ def _transfer_out(transfer: Transfer, message: str | None = None) -> TransferOut
     )
 
 
-@router.post("", response_model=TransferOut, status_code=201)
+@router.post(
+    "", response_model=TransferOut, status_code=201, dependencies=[Depends(rate_limit_transfers)]
+)
 def initiate_transfer(
     body: TransferCreate,
     response: Response,
@@ -131,7 +134,7 @@ def _replay_or_conflict(existing: Transfer, request_hash: str, response: Respons
     return _transfer_out(existing)
 
 
-@router.get("/{transfer_id}", response_model=TransferOut)
+@router.get("/{transfer_id}", response_model=TransferOut, dependencies=[Depends(rate_limit_reads)])
 def get_transfer_status(
     transfer_id: str,
     principal=Depends(require_transfers_initiate),
@@ -158,7 +161,12 @@ def confirm_transfer(
     if x_agent_token is not None:
         raise AppError(403, "agents_cannot_confirm", "Agents cannot confirm transfers.")
     if "transfers:confirm" not in principal.scopes:
-        raise AppError(403, "forbidden", "scope_missing:transfers:confirm")
+        raise AppError(
+            403,
+            "forbidden",
+            "scope_missing:transfers:confirm",
+            audit_reason="scope_missing:transfers:confirm",
+        )
 
     transfer = db.query(Transfer).filter_by(id=transfer_id, customer_id=principal.sub).one_or_none()
     if transfer is None:

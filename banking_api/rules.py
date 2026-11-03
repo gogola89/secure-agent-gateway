@@ -34,6 +34,7 @@ def validate_transfer(
             "amount_exceeds_limit",
             f"amount_kes exceeds the per-transfer limit of "
             f"{settings.transfer_max_amount_cents / 100:.2f} KES.",
+            audit_reason="limit_exceeded:per_transfer",
         )
 
     daily_total = (
@@ -51,6 +52,7 @@ def validate_transfer(
             "daily_limit_exceeded",
             f"This transfer would exceed the daily limit of "
             f"{settings.transfer_daily_limit_cents / 100:.2f} KES.",
+            audit_reason="limit_exceeded:daily",
         )
 
     pending_from_account = (
