@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from banking_api.audit import audit_middleware
 from banking_api.db import engine
-from banking_api.errors import register_exception_handlers
+from banking_api.errors import error_responses, register_exception_handlers
 from banking_api.redis_client import get_redis
 from banking_api.routers import accounts, auth, transfers
 from banking_api.routers import audit as audit_router
@@ -26,7 +26,7 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/readyz")
+@app.get("/readyz", responses=error_responses(500))
 def readyz() -> dict[str, str]:
     """Readiness: can this instance actually serve traffic right now?"""
     with engine.connect() as conn:

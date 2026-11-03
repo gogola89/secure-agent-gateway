@@ -1,5 +1,7 @@
 # secure-agent-gateway
 
+[![CI](https://github.com/gogola89/secure-agent-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/gogola89/secure-agent-gateway/actions/workflows/ci.yml)
+
 A prototype of how AI agents can safely access banking systems: narrow
 tools, delegated identity, human confirmation, idempotency and
 tamper-evident audit. All data is invented, no real bank is involved, and
@@ -152,6 +154,6 @@ prompt/tool change ships.
 - [x] Phase 3 - transfers, idempotency, OTP confirmation
 - [x] Phase 4 - audit log hash chain, rate limiting
 - [x] Phase 5 - MCP server
-- [ ] Phase 6 - CI, contract testing, docs
+- [x] Phase 6 - CI, contract testing, docs
 - [ ] Phase 7 (optional) - outbox + RabbitMQ relay
 - [ ] Phase 8 (optional) - RAG over product documents

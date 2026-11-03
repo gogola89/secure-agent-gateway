@@ -171,3 +171,37 @@ choice made, per the ground rules in the spec.
   retries 3 times" and "circuit breaker opens after 5 failures"
   deterministic and fast instead of dependent on real timing/network
   behaviour.
+
+## Phase 6
+
+- **Every endpoint declares its possible error status codes** via
+  `errors.error_responses(...)` in its route decorator, not just its
+  success response. Schemathesis checks "undocumented status code" as a
+  real failure, and by default FastAPI only documents the happy path -
+  this is what made `status_code_conformance` and
+  `response_schema_conformance` pass 180/180 against a live Schemathesis
+  run rather than being silently skipped.
+- **One Schemathesis finding was a transport-layer artifact, not an API
+  bug:** a single fuzzed request triggered `h11`/uvicorn's own
+  "Invalid HTTP request received" (`text/plain`, 400) before the request
+  ever reached the FastAPI app, so none of this project's exception
+  handlers or documented content types apply to it. Verified by hand with
+  `curl` that an equivalent request through the app returns the documented
+  `application/json` error envelope. Noted rather than "fixed", since
+  there's nothing in application code to fix.
+- **Contract testing is two separate layers, deliberately:** (1) the CI
+  OpenAPI drift check (`make openapi` regenerated vs. the committed file)
+  catches any interface change that wasn't deliberately reviewed; (2) the
+  `openapi-core`-based tests in `test_contract.py` catch a response that
+  drifted from its own documented shape even though the code *compiles*
+  and other tests pass on behaviour alone. Schemathesis in CI is a third
+  layer: it doesn't know this API's business rules, so it finds things
+  neither (1) nor (2) can - undocumented status codes and schema
+  violations across inputs nobody wrote a test for by hand.
+- **Consumer-driven contract testing (Pact) is the next step**, not
+  something this project needed: Pact matters once separate teams own the
+  consumer (here, the MCP server/agent) and the provider (the banking
+  API) and want the provider's CI to fail if it breaks a contract the
+  consumer actually depends on, without either team reading the other's
+  code. For a one-person demo repo, schema-based contract testing already
+  covers the same risk.

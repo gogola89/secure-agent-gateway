@@ -19,7 +19,7 @@ from banking_api.auth import Principal, get_customer_principal, require_scopes
 from banking_api.authz import get_owned_account, get_owned_beneficiary
 from banking_api.config import settings
 from banking_api.db import get_db
-from banking_api.errors import AppError
+from banking_api.errors import AppError, error_responses
 from banking_api.models import Account, Customer, Transaction, Transfer
 from banking_api.otp import check_otp, clear_otp, generate_otp, send_otp_sms, store_otp
 from banking_api.ratelimit import rate_limit_reads, rate_limit_transfers
@@ -27,7 +27,7 @@ from banking_api.redis_client import get_redis
 from banking_api.rules import validate_transfer
 from banking_api.schemas import ConfirmRequest, TransferCreate, TransferOut, amount_kes_to_cents
 
-router = APIRouter(prefix="/transfers", tags=["transfers"])
+router = APIRouter(prefix="/transfers", tags=["transfers"], responses=error_responses(401, 403))
 
 require_transfers_initiate = require_scopes("transfers:initiate")
 
@@ -55,7 +55,11 @@ def _transfer_out(transfer: Transfer, message: str | None = None) -> TransferOut
 
 
 @router.post(
-    "", response_model=TransferOut, status_code=201, dependencies=[Depends(rate_limit_transfers)]
+    "",
+    response_model=TransferOut,
+    status_code=201,
+    dependencies=[Depends(rate_limit_transfers)],
+    responses=error_responses(400, 404, 409, 422, 429),
 )
 def initiate_transfer(
     body: TransferCreate,
@@ -134,7 +138,12 @@ def _replay_or_conflict(existing: Transfer, request_hash: str, response: Respons
     return _transfer_out(existing)
 
 
-@router.get("/{transfer_id}", response_model=TransferOut, dependencies=[Depends(rate_limit_reads)])
+@router.get(
+    "/{transfer_id}",
+    response_model=TransferOut,
+    dependencies=[Depends(rate_limit_reads)],
+    responses=error_responses(404, 429),
+)
 def get_transfer_status(
     transfer_id: str,
     principal=Depends(require_transfers_initiate),
@@ -150,7 +159,11 @@ def get_transfer_status(
     return _transfer_out(transfer)
 
 
-@router.post("/{transfer_id}/confirm", response_model=TransferOut)
+@router.post(
+    "/{transfer_id}/confirm",
+    response_model=TransferOut,
+    responses=error_responses(404, 409, 422),
+)
 def confirm_transfer(
     transfer_id: str,
     body: ConfirmRequest,

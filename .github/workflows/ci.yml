@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DATABASE_URL: postgresql+psycopg://gateway:gateway@localhost:5432/gateway
+  REDIS_URL: redis://localhost:6379/0
+  RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+  JWT_PRIVATE_KEY_PATH: keys/private.pem
+  JWT_PUBLIC_KEY_PATH: keys/public.pem
+  ADMIN_TOKEN: ci-admin-token
+  SMS_OUTBOX_PATH: var/sms_outbox.log
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gateway
+          POSTGRES_PASSWORD: gateway
+          POSTGRES_DB: gateway
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gateway -d gateway"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports: ["5672:5672", "15672:15672"]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+
+      - name: Generate keys, migrate, seed
+        run: |
+          mkdir -p keys var
+          .venv/bin/python scripts/gen_keys.py
+          .venv/bin/python -m alembic upgrade head
+          .venv/bin/python scripts/seed.py
+
+      - name: Test with coverage
+        run: .venv/bin/python -m pytest --cov=banking_api --cov-report=term-missing --cov-fail-under=85
+
+      - name: OpenAPI drift check
+        run: |
+          .venv/bin/python -c "import json; from banking_api.main import app; json.dump(app.openapi(), open('openapi.generated.json', 'w'), indent=2, sort_keys=True)"
+          diff openapi.json openapi.generated.json
+
+      - name: Start API for contract testing
+        run: |
+          .venv/bin/python -m uvicorn banking_api.main:app --port 8000 &
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/readyz && break
+            sleep 1
+          done
+
+      - name: Schemathesis
+        run: |
+          CUSTOMER_TOKEN=$(.venv/bin/python -c "
+          from banking_api.auth import create_customer_token, CUSTOMER_FULL_SCOPES
+          from banking_api.db import SessionLocal
+          from banking_api.models import Customer
+          db = SessionLocal()
+          customer = db.query(Customer).filter_by(phone='+254712345000').one()
+          print(create_customer_token(str(customer.id), CUSTOMER_FULL_SCOPES))
+          ")
+          AGENT_TOKEN=$(.venv/bin/python -c "
+          from banking_api.auth import create_agent_token
+          from banking_api.config import settings
+          agent = settings.agent_credentials()['assistant-v1']
+          print(create_agent_token(agent.client_id, agent.scopes))
+          ")
+          .venv/bin/schemathesis run openapi.json \
+            --base-url http://localhost:8000 \
+            --checks all \
+            --experimental=openapi-3.1 \
+            -H "Authorization: Bearer $CUSTOMER_TOKEN" \
+            -H "X-Agent-Token: $AGENT_TOKEN" \
+            --hypothesis-max-examples 20
+
+      - name: Build Docker image
+        run: docker build -f banking_api/Dockerfile -t secure-agent-gateway-api .

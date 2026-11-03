@@ -6,7 +6,41 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    correlation_id: str
+
+
+class ErrorEnvelope(BaseModel):
+    """Every error response's shape - used both at runtime (`_envelope`)
+    and to document each endpoint's possible status codes in the OpenAPI
+    schema, which Schemathesis then checks responses against (section 9)."""
+
+    error: ErrorDetail
+
+
+_STATUS_DESCRIPTIONS = {
+    400: "Invalid request",
+    401: "Authentication failed",
+    403: "Forbidden",
+    404: "Not found",
+    409: "Conflict",
+    422: "Validation or business-rule failure",
+    429: "Rate limited",
+    500: "Internal error",
+}
+
+
+def error_responses(*status_codes: int) -> dict[int, dict]:
+    return {
+        code: {"model": ErrorEnvelope, "description": _STATUS_DESCRIPTIONS.get(code, "Error")}
+        for code in status_codes
+    }
 
 
 class AppError(Exception):

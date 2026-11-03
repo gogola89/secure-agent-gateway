@@ -86,6 +86,66 @@ def test_missing_tokens_are_rejected(client):
     assert client.get("/accounts").status_code == 401
 
 
+def test_missing_agent_token_header_is_rejected(client, amina_full_token):
+    response = client.get("/accounts", headers={"Authorization": f"Bearer {amina_full_token}"})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "missing_agent_token"
+
+
+def test_wrong_password_is_rejected(client):
+    response = client.post(
+        "/auth/token",
+        json={"grant_type": "password", "username": "+254712345000", "password": "nope"},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_credentials"
+
+
+def test_unknown_customer_phone_is_rejected(client):
+    response = client.post(
+        "/auth/token",
+        json={
+            "grant_type": "password",
+            "username": "+254700000000",
+            "password": settings.demo_customer_password,
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_credentials"
+
+
+def test_unknown_agent_client_credentials_are_rejected(client):
+    response = client.post(
+        "/auth/token",
+        json={
+            "grant_type": "client_credentials",
+            "client_id": "assistant-v1",
+            "client_secret": "wrong-secret",
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_client"
+
+
+def test_token_exchange_with_unknown_delegate_is_rejected(client, amina_full_token):
+    response = client.post(
+        "/auth/token",
+        json={
+            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+            "subject_token": amina_full_token,
+            "client_id": "no-such-agent",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_target"
+
+
+def test_unsupported_grant_type_is_rejected(client):
+    response = client.post("/auth/token", json={"grant_type": "implicit"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "unsupported_grant_type"
+
+
 def test_effective_scopes_are_the_intersection(client, amina_full_token):
     narrow_agent_token = auth.create_agent_token("assistant-v1", ["transactions:read"])
     response = client.get("/accounts", headers=auth_headers(amina_full_token, narrow_agent_token))

@@ -23,7 +23,7 @@ from banking_api.auth import (
 )
 from banking_api.config import settings
 from banking_api.db import get_db
-from banking_api.errors import AppError
+from banking_api.errors import AppError, error_responses
 from banking_api.models import Customer
 from banking_api.schemas import TokenRequest, TokenResponse
 
@@ -81,7 +81,11 @@ def _token_exchange_grant(body: TokenRequest) -> TokenResponse:
     return _token_response(token, delegated_scopes)
 
 
-@router.post("/token", response_model=TokenResponse)
+@router.post(
+    "/token",
+    response_model=TokenResponse,
+    responses=error_responses(400, 401, 422),
+)
 def issue_token(body: TokenRequest, db: Session = Depends(get_db)) -> TokenResponse:
     if body.grant_type == "password":
         return _password_grant(body, db)

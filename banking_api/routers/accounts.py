@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from banking_api.auth import EffectivePrincipal, require_scopes
 from banking_api.authz import get_owned_account
 from banking_api.db import get_db
+from banking_api.errors import error_responses
 from banking_api.masking import mask_account_number
 from banking_api.models import Account, Beneficiary, Transaction
 from banking_api.ratelimit import rate_limit_reads
@@ -16,7 +17,11 @@ from banking_api.schemas import (
     amount_cents_to_kes,
 )
 
-router = APIRouter(tags=["accounts"], dependencies=[Depends(rate_limit_reads)])
+router = APIRouter(
+    tags=["accounts"],
+    dependencies=[Depends(rate_limit_reads)],
+    responses=error_responses(401, 403, 429),
+)
 
 require_accounts_read = require_scopes("accounts:read")
 require_transactions_read = require_scopes("transactions:read")
@@ -42,7 +47,11 @@ def list_accounts(
     ]
 
 
-@router.get("/accounts/{alias}/transactions", response_model=list[TransactionOut])
+@router.get(
+    "/accounts/{alias}/transactions",
+    response_model=list[TransactionOut],
+    responses=error_responses(404, 422),
+)
 def get_recent_transactions(
     alias: str,
     limit: int = Query(default=10, ge=1, le=20),
