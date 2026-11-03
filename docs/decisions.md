@@ -205,3 +205,42 @@ choice made, per the ground rules in the spec.
   consumer actually depends on, without either team reading the other's
   code. For a one-person demo repo, schema-based contract testing already
   covers the same risk.
+- **Schemathesis in CI (on a clean GitHub-hosted runner, not my laptop)
+  found two real 500s and confirmed a third finding was not an app bug:**
+  1. A NUL byte anywhere in a request body crashed the **audit write**,
+     not the request logic - Postgres's JSONB type categorically rejects
+     an embedded NUL byte in text. The real response (say, a clean 400 for
+     a bad `grant_type`) was already computed, but `write_audit_row`
+     raised afterward trying to store it, and that exception reached
+     Starlette's top-level error handler instead of the client ever seeing
+     the intended response. Fixed with a recursive sanitizer
+     (`audit._sanitize`) stripping NUL bytes from every string field
+     before it's ever handed to JSONB or a VARCHAR column - applied to
+     `args_masked` *and* to `correlation_id`/`action`, since
+     `X-Correlation-ID` is attacker-controlled too.
+  2. `transfer_id` was a bare `str` path parameter, so a malformed value
+     (a NUL byte, or any non-UUID string) reached the database raw and
+     crashed with a DB-level `DataError` instead of a clean 4xx. Fixed by
+     typing it as `uuid.UUID`, so FastAPI validates and rejects it with a
+     422 before the handler runs - the kind of bug that's invisible until
+     something sends genuinely malformed input, which is exactly what a
+     fuzzer is for.
+  3. One finding (`POST /transfers`, "Undocumented Content-Type", a raw
+     `text/plain` "Invalid HTTP request received") was real, but not an
+     application bug: an **undeclared** `Idempotency-Key` header let
+     Schemathesis generate a value containing a raw control character,
+     which is not legal inside an HTTP header line at all - h11/uvicorn
+     correctly rejects the request at the protocol level, before it
+     reaches the ASGI app. Confirmed by hand with a raw socket sending a
+     header value containing `\x00`. The honest fix wasn't to catch
+     anything in application code (there's no application code in that
+     path) but to *declare* the constraint a real idempotency key always
+     satisfies - printable ASCII, 8-128 characters - directly on the
+     FastAPI `Header(...)` parameter, via `pattern=`. That both documents
+     the real contract in the OpenAPI schema and stops Schemathesis (or
+     any other caller) from generating a value that was never valid in
+     the first place. All three findings are exactly what section 9's
+     "Schemathesis... checks for 5xx errors, schema violations and
+     undocumented status codes" is for - this is the step that caught bugs
+     the unit test suite, written by the same person who wrote the code,
+     structurally could not.

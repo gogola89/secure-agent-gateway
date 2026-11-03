@@ -31,8 +31,17 @@ router = APIRouter(prefix="/transfers", tags=["transfers"], responses=error_resp
 
 require_transfers_initiate = require_scopes("transfers:initiate")
 
-MIN_IDEMPOTENCY_KEY_LENGTH = 8
-MAX_IDEMPOTENCY_KEY_LENGTH = 128
+# Printable ASCII only, 8-128 characters: a real idempotency key is a
+# simple token (UUID, hex digest, base64), never raw control characters.
+# Declaring this on the header itself - not just checking it by hand in
+# the handler - means FastAPI rejects a malformed key with a clean 422
+# before the handler runs, and it's documented in the OpenAPI schema
+# rather than being an undocumented runtime-only rule (Schemathesis
+# fuzzing found that an undeclared header accepts byte values that are
+# not even legal in an HTTP header line, which h11/uvicorn then rejects
+# at the protocol level with a bare "Invalid HTTP request received" -
+# before the request ever reaches this application).
+IDEMPOTENCY_KEY_PATTERN = r"^[\x21-\x7e]{8,128}$"
 
 
 def _canonical_request_hash(body: TransferCreate) -> str:
@@ -64,18 +73,10 @@ def _transfer_out(transfer: Transfer, message: str | None = None) -> TransferOut
 def initiate_transfer(
     body: TransferCreate,
     response: Response,
-    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    idempotency_key: str = Header(..., alias="Idempotency-Key", pattern=IDEMPOTENCY_KEY_PATTERN),
     principal=Depends(require_transfers_initiate),
     db: Session = Depends(get_db),
 ) -> TransferOut:
-    if not (MIN_IDEMPOTENCY_KEY_LENGTH <= len(idempotency_key) <= MAX_IDEMPOTENCY_KEY_LENGTH):
-        raise AppError(
-            400,
-            "invalid_idempotency_key",
-            f"Idempotency-Key must be {MIN_IDEMPOTENCY_KEY_LENGTH} to "
-            f"{MAX_IDEMPOTENCY_KEY_LENGTH} characters.",
-        )
-
     request_hash = _canonical_request_hash(body)
 
     existing = (
@@ -145,7 +146,7 @@ def _replay_or_conflict(existing: Transfer, request_hash: str, response: Respons
     responses=error_responses(404, 429),
 )
 def get_transfer_status(
-    transfer_id: str,
+    transfer_id: uuid.UUID,
     principal=Depends(require_transfers_initiate),
     db: Session = Depends(get_db),
 ) -> TransferOut:
@@ -165,7 +166,7 @@ def get_transfer_status(
     responses=error_responses(404, 409, 422),
 )
 def confirm_transfer(
-    transfer_id: str,
+    transfer_id: uuid.UUID,
     body: ConfirmRequest,
     x_agent_token: str | None = Header(default=None, alias="X-Agent-Token"),
     principal: Principal = Depends(get_customer_principal),

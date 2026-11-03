@@ -43,6 +43,24 @@ def _canonical(row: dict) -> str:
     return json.dumps(row, sort_keys=True, separators=(",", ":"), default=str)
 
 
+def _sanitize(value: object) -> object:
+    """Postgres's JSONB type rejects a literal NUL byte in any string,
+    anywhere in the document - `psycopg.errors.UntranslatableCharacter`.
+    A request body, path or query value can contain one (a client can send
+    whatever bytes it likes), so this strips them before anything is ever
+    handed to JSONB. Without it, a NUL byte in an otherwise-ordinary
+    request crashes the audit write itself, turning the real response
+    (say, a clean 400) into a 500 - the audit log failing is a worse
+    outcome than the adversarial input it was trying to record."""
+    if isinstance(value, dict):
+        return {k: _sanitize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize(v) for v in value]
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    return value
+
+
 def _redact(value: object) -> object:
     if isinstance(value, dict):
         return {k: (REDACTED if k in SENSITIVE_BODY_KEYS else _redact(v)) for k, v in value.items()}
@@ -61,6 +79,12 @@ def write_audit_row(
     status_code: int,
     latency_ms: int,
 ) -> None:
+    # correlation_id is attacker-controlled (a client may send any
+    # X-Correlation-ID); sanitize every string field, not just args_masked,
+    # since Postgres rejects an embedded NUL byte in text columns too.
+    correlation_id = _sanitize(correlation_id)
+    action = _sanitize(action)
+
     db = SessionLocal()
     try:
         db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": AUDIT_CHAIN_LOCK_KEY})
@@ -125,7 +149,7 @@ async def _extract_args(request: Request) -> dict:
         if body:
             with contextlib.suppress(ValueError):
                 args["body"] = json.loads(body)
-    return _redact(args)
+    return _redact(_sanitize(args))
 
 
 async def audit_middleware(

@@ -900,6 +900,7 @@
             "name": "Idempotency-Key",
             "required": true,
             "schema": {
+              "pattern": "^[\\x21-\\x7e]{8,128}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -1044,6 +1045,7 @@
             "name": "transfer_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "Transfer Id",
               "type": "string"
             }
@@ -1158,6 +1160,7 @@
             "name": "transfer_id",
             "required": true,
             "schema": {
+              "format": "uuid",
               "title": "Transfer Id",
               "type": "string"
             }

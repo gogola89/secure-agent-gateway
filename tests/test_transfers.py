@@ -110,6 +110,48 @@ def test_concurrent_identical_requests_create_exactly_one_transfer(amina_token, 
 # --- Limits ---
 
 
+def test_idempotency_key_outside_the_declared_pattern_is_rejected_cleanly(
+    client, amina_token, agent_token
+):
+    """Regression: an undeclared `Idempotency-Key` header let Schemathesis
+    generate a value containing a raw control character, which h11/uvicorn
+    rejects at the HTTP protocol level - before this application ever sees
+    the request. The header now declares a printable-ASCII, 8-128 char
+    pattern, so FastAPI rejects an out-of-pattern value with a clean 422."""
+    response = client.post(
+        "/transfers",
+        headers={**auth_headers(amina_token, agent_token), "Idempotency-Key": "short"},
+        json={
+            "from_account_alias": "ACC-1",
+            "beneficiary_alias": "BEN-1",
+            "amount_kes": "100.00",
+            "narration": "too short a key",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_malformed_transfer_id_is_rejected_cleanly(
+    client, amina_token, agent_token, amina_full_token
+):
+    """Regression: `transfer_id` used to be a bare `str` path param, so a
+    non-UUID value (e.g. a NUL byte, found by Schemathesis fuzzing in CI)
+    reached the database raw and crashed with a 500 instead of a clean
+    4xx. It's now typed as `uuid.UUID`, so FastAPI rejects it before the
+    handler ever runs."""
+    status_response = client.get(
+        "/transfers/not-a-uuid", headers=auth_headers(amina_token, agent_token)
+    )
+    assert status_response.status_code == 422
+
+    confirm_response = client.post(
+        "/transfers/not-a-uuid/confirm",
+        json={"otp": "123456"},
+        headers={"Authorization": f"Bearer {amina_full_token}"},
+    )
+    assert confirm_response.status_code == 422
+
+
 def test_sixth_transfer_request_in_a_minute_is_rate_limited(client, amina_token, agent_token):
     limit = settings.rate_limit_transfers_per_minute
     for i in range(limit):

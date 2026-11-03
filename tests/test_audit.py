@@ -105,3 +105,19 @@ def test_delete_on_audit_log_raises(db_session):
         db_session.execute(text("DELETE FROM audit_log WHERE id = :id"), {"id": row.id})
         db_session.commit()
     db_session.rollback()
+
+
+def test_a_nul_byte_in_the_request_body_does_not_crash_the_audit_write(client, db_session):
+    """Regression: Postgres' JSONB rejects an embedded NUL byte, and the
+    audit middleware used to store the raw request body verbatim - a NUL
+    byte anywhere in a body crashed the audit write itself, turning an
+    ordinary 400 into a 500 (found by Schemathesis fuzzing in CI)."""
+    before = db_session.query(AuditLog).count()
+    response = client.post(
+        "/auth/token",
+        content='{"grant_type": "\\u0000bad"}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "unsupported_grant_type"
+    assert db_session.query(AuditLog).count() == before + 1
