@@ -61,21 +61,32 @@ def test_audit_verify_requires_admin_token(client):
 def test_audit_verify_detects_a_tampered_row(client, amina_token, agent_token, db_session):
     client.get("/accounts", headers=auth_headers(amina_token, agent_token))
     row = db_session.query(AuditLog).order_by(AuditLog.id.desc()).first()
+    original_reason = row.reason
 
     # Simulate an attacker with raw DB access deliberately bypassing the
     # append-only trigger - the only way any UPDATE reaches this table.
-    db_session.execute(text("ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete"))
-    db_session.execute(
-        text("UPDATE audit_log SET reason = :reason WHERE id = :id"),
-        {"reason": "tampered", "id": row.id},
-    )
-    db_session.execute(text("ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete"))
-    db_session.commit()
+    # Restored at the end: this suite runs against the same dev database
+    # as the live demo, and a tampered row left behind would permanently
+    # fail /audit/verify for anyone running the app afterwards.
+    try:
+        db_session.execute(text("ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update_delete"))
+        db_session.execute(
+            text("UPDATE audit_log SET reason = :reason WHERE id = :id"),
+            {"reason": "tampered", "id": row.id},
+        )
+        db_session.commit()
 
-    response = client.get("/audit/verify", headers=ADMIN_HEADERS)
-    body = response.json()
-    assert body["valid"] is False
-    assert body["first_broken_row_id"] == row.id
+        response = client.get("/audit/verify", headers=ADMIN_HEADERS)
+        body = response.json()
+        assert body["valid"] is False
+        assert body["first_broken_row_id"] == row.id
+    finally:
+        db_session.execute(
+            text("UPDATE audit_log SET reason = :reason WHERE id = :id"),
+            {"reason": original_reason, "id": row.id},
+        )
+        db_session.execute(text("ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update_delete"))
+        db_session.commit()
 
 
 def test_update_on_audit_log_raises(db_session):

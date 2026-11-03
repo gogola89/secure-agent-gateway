@@ -18,12 +18,22 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from banking_api.db import SessionLocal
 from banking_api.models import AuditLog
 
 GENESIS_HASH = "0" * 64
+
+# Arbitrary fixed key for a Postgres advisory lock scoped to one
+# transaction (released automatically on commit/rollback). This is what
+# actually serialises chain appends: `SELECT ... FOR UPDATE` on "the
+# current last row" does not work, because Postgres does not re-evaluate
+# an `ORDER BY ... LIMIT 1` for a row inserted *after* the lock wait began -
+# two transactions can both resolve the same "last row" as their lock
+# target, then both commit a new row chained to it, forking the chain. An
+# advisory lock serialises the whole read-tip-then-insert sequence instead.
+AUDIT_CHAIN_LOCK_KEY = 726174  # arbitrary constant, unique to this lock's purpose
 
 REDACTED = "***"
 SENSITIVE_BODY_KEYS = {"password", "client_secret", "subject_token", "access_token", "otp"}
@@ -53,10 +63,10 @@ def write_audit_row(
 ) -> None:
     db = SessionLocal()
     try:
-        # Lock the chain tip so concurrent requests append in series rather
-        # than both reading the same prev_hash and forking the chain.
+        db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": AUDIT_CHAIN_LOCK_KEY})
+
         prev_hash = db.execute(
-            select(AuditLog.row_hash).order_by(AuditLog.id.desc()).limit(1).with_for_update()
+            select(AuditLog.row_hash).order_by(AuditLog.id.desc()).limit(1)
         ).scalar()
         prev_hash = prev_hash or GENESIS_HASH
 
